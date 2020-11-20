@@ -160,13 +160,14 @@ def classify_local(sentence, verbose=False):
 
 def respond(sentence):
     if not os.path.isfile(NEURAL_NETWORK_FILE):
+        print("Begin training model")
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1' 
         train_save_model()
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-        print("finished training model")
+        print("finished training model\n")
     label_prob_list = classify_local(sentence)
     label = max(label_prob_list, key = lambda x: x[1])[0]
     return random.choice(responses[label])
 
 if __name__ == "__main__":
-    print(respond(" ".join(sys.argv[1:])))
+    print("chatbot:", respond(" ".join(sys.argv[1:])))
