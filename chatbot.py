@@ -1,6 +1,8 @@
-import os
+import os, logging, sys
 if __name__ == "__main__":
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+    if len(sys.argv) <= 1 or sys.argv[1] != "train":
+        logging.disable(logging.WARNING)
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 import nltk
 from nltk.stem.lancaster import LancasterStemmer
 stemmer = LancasterStemmer()
@@ -13,7 +15,6 @@ from tensorflow.keras.optimizers import SGD
 import pandas as pd
 import random
 import json
-import sys
 
 try:
     nltk.data.find('tokenizers/punkt')
@@ -27,15 +28,29 @@ DATA_FILE = os.path.join(FILE_DIR, "intents.json")
 with open(DATA_FILE) as f:
     intents = json.load(f)
 
+class Response:
+    def __init__(self, response_messages, context):
+        self.response_messages = response_messages
+        self.context = context
+    
+    @property
+    def is_context_empty():
+        return self.context in [None, ""]
+
 words = []
 classes = []
 documents = []
-responses = {}
+responses = {
+    "": Response([], [""])
+}
 ignore_words = ['?']
 
 # loop through each sentence in our intents patterns
 for intent in intents['intents']:
-    responses[intent['tag']] = responses.get(intent['tag'], []) + intent["responses"]
+    response_info = responses.get(intent['tag'], Response([], ""))
+    response_info = Response(response_info.response_messages + intent["responses"], \
+        response_info.response_messages + intent["context"])
+    responses[intent['tag']] = response_info
     for pattern in intent['patterns']:
         # tokenize each word in the sentence
         w = nltk.word_tokenize(pattern)
@@ -47,7 +62,8 @@ for intent in intents['intents']:
         if intent['tag'] not in classes:
             classes.append(intent['tag'])
 for tag in responses:
-    responses[tag] = list(set(responses[tag]))
+    responses[tag].response_messages = list(set(responses[tag].response_messages))
+    responses[tag].context = list(set(responses[tag].context))
 
 # stem and lower each word and remove duplicates
 words = [stemmer.stem(w.lower()) for w in words if w not in ignore_words]
@@ -158,16 +174,28 @@ def classify_local(sentence, verbose=False):
     
     return return_list
 
-def respond(sentence):
+def respond(sentence, label=None):
     if not os.path.isfile(NEURAL_NETWORK_FILE):
         print("Begin training model")
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1' 
         train_save_model()
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
         print("finished training model\n")
-    label_prob_list = classify_local(sentence)
-    label = max(label_prob_list, key = lambda x: x[1])[0]
-    return random.choice(responses[label])
+    if label == None:
+        label_prob_list = classify_local(sentence)
+        label = max(label_prob_list, key = lambda x: x[1])[0]
+    return random.choice(responses[label].response_messages), label, random.choice(responses[label].context)
 
 if __name__ == "__main__":
-    print("chatbot:", respond(" ".join(sys.argv[1:])))
+    if len(sys.argv) > 1 and sys.argv[1] == "train": 
+        train_save_model()
+        logging.disable(logging.WARNING)
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+    ctx_exists = True
+    ctx = None
+    while ctx_exists:
+        s = input("say something:")
+        response, _, ctx = respond(s, ctx)
+        if ctx == "":
+            ctx = None
+        print("chatbot:", response)
