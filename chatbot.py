@@ -47,9 +47,9 @@ ignore_words = ['?']
 
 # loop through each sentence in our intents patterns
 for intent in intents['intents']:
-    response_info = responses.get(intent['tag'], Response([], ""))
+    response_info = responses.get(intent['tag'], Response([], []))
     response_info = Response(response_info.response_messages + intent["responses"], \
-        response_info.response_messages + intent["context"])
+        response_info.context + intent["context"])
     responses[intent['tag']] = response_info
     for pattern in intent['patterns']:
         # tokenize each word in the sentence
@@ -191,9 +191,9 @@ if __name__ == "__main__":
         train_save_model()
         logging.disable(logging.WARNING)
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-    ctx_exists = True
+    chat_is_ongoing = True
     ctx = None
-    while ctx_exists:
+    while chat_is_ongoing:
         s = input("say something:")
         response, _, ctx = respond(s, ctx)
         if ctx == "":
